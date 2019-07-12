@@ -18,23 +18,19 @@ clone this repo
 
 cd into the directory
 
-run `npm install`
+run `yarn install`
 
 ## configure
 
-Copy `config.sample.json` to `config.json` and update it to match your setup
+Copy `config.sample.yaml` to `config.yaml` and update it to match your setup
 
 ## register the app service
 
-Generate an `skype-registration.yaml` file with `node index.js -r -u "http://your-bridge-server:8090"`
+Generate a `registration.yaml` file with `yarn run reg http://your-bridge-server.example.com:8090`
 
-Note: The 'registration' setting in the config.json needs to set to the path of this file. By default, it already is.
+Copy this `registration.yaml` file to your home server, and update your `homeserver.yaml` file's `app_service_config_files` with the path to the `registration.yaml` file.
 
-Copy this `skype-registration.yaml` file to your home server, then edit it, setting its url to point to your bridge server. e.g. `url: 'http://your-bridge-server.example.org:8090'`
-
-Edit your homeserver.yaml file and update the `app_service_config_files` with the path to the `skype-registration.yaml` file.
-
-Launch the bridge with ```node index.js```.
+Launch the bridge with `yarn run start`.
 
 Restart your HS.
 

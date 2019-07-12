@@ -4,16 +4,22 @@
   "main": "index.js",
   "license": "MIT",
   "scripts": {
-    "start": "DEBUG=matrix-puppet:* node index.js"
+    "cli": "DEBUG=matrix-puppet:* ./index.js",
+    "start": "DEBUG=matrix-puppet:* ./index.js -c config.yaml",
+    "reg": "DEBUG=matrix-puppet:* ./index.js -r -c config.yaml -u"
   },
   "bin": {
     "matrix-puppet-skype": "index.js"
   },
-  "files": ["*.js", "config.sample.json"],
+  "files": [
+    "*.js",
+    "config.sample.yaml"
+  ],
   "dependencies": {
     "bluebird": "^3.5.0",
     "concat-stream": "^1.6.0",
     "debug": "^2.6.8",
+    "tmp": "^0.1.0",
     "html-entities": "^1.2.1",
     "matrix-puppet-bridge": "arcnmx/matrix-puppet-bridge#bridgeconfig",
     "mime-types": "^2.1.14",

@@ -1,0 +1,8 @@
+skype:
+  username: ''
+  password: ''
+#puppet:
+#  id: '@me:example.com'
+#  token: ''
+#bridge:
+#  homeserverUrl: 'https://matrix.example.com'
