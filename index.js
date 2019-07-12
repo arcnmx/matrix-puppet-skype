@@ -1,3 +1,6 @@
+#!/usr/bin/env node
+
+global.Olm = require('olm');
 const {
   MatrixAppServiceBridge: {
     Cli, AppServiceRegistration
