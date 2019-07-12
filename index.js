@@ -9,9 +9,7 @@ const {
   MatrixPuppetBridgeBase
 } = require("matrix-puppet-bridge");
 const SkypeClient = require('./client');
-const config = require('./config.json');
 const path = require('path');
-const puppet = new Puppet(path.join(__dirname, './config.json' ));
 const debug = require('debug')('matrix-puppet:skype');
 const { skypeify, deskypeify } = require('./skypeify');
 const tmp = require('tmp');
@@ -29,7 +27,7 @@ class App extends MatrixPuppetBridgeBase {
   getServiceName() {
     return "Skype";
   }
-  initThirdPartyClient() {
+  initThirdPartyClient(config) {
     this.client = new SkypeClient(config.skype);
 
     this.client.on('error', (err) => {
@@ -190,27 +188,60 @@ class App extends MatrixPuppetBridgeBase {
 }
 
 new Cli({
-  port: config.port,
-  registrationPath: config.registrationPath,
-  generateRegistration: function(reg, callback) {
-    puppet.associate().then(()=>{
-      reg.setId(AppServiceRegistration.generateToken());
-      reg.setHomeserverToken(AppServiceRegistration.generateToken());
-      reg.setAppServiceToken(AppServiceRegistration.generateToken());
-      reg.setSenderLocalpart("skypebot");
-      reg.addRegexPattern("users", "@skype_.*", true);
-      callback(reg);
-    }).catch(err=>{
-      console.error(err.message);
-      process.exit(-1);
-    });
+  enableLocalpart: true,
+  bridgeConfig: {
+    affectsRegistration: true,
+    schema: {
+      type: "object",
+      properties: Object.assign(Puppet.configSchemaProperties(), {
+        skype: {
+          type: "object",
+          username: {
+            type: "string"
+          },
+          password: {
+            type: "string"
+          }
+        },
+      })
+    }
   },
-  run: function(port) {
+  generateRegistration: function(reg, callback) {
+    const config = this.getConfig();
+
+    return (async () => {
+      try {
+        reg.setId(AppServiceRegistration.generateToken());
+        reg.setHomeserverToken(AppServiceRegistration.generateToken());
+        reg.setAppServiceToken(AppServiceRegistration.generateToken());
+        reg.setSenderLocalpart("skypebot");
+        reg.addRegexPattern("users", "@skype_.*", true);
+
+        const puppet = new Puppet({
+          config: config
+        });
+
+        await puppet.associate({
+          detectConfigPath: true,
+          registration: reg
+        });
+
+        return callback(reg);
+      } catch (err) {
+        debug('generateRegistration', err.message);
+        process.exit(-1);
+      }
+    })();
+  },
+  run: function(port, config) {
+      const puppet = new Puppet({
+        config: config
+      });
     const app = new App(config, puppet);
     console.log('starting matrix client');
     return puppet.startClient().then(()=>{
       console.log('starting skype client');
-      return app.initThirdPartyClient();
+      return app.initThirdPartyClient(config);
     }).then(()=>{
       return app.bridge.run(port, config);
     }).then(()=>{

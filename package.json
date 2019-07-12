@@ -15,7 +15,7 @@
     "concat-stream": "^1.6.0",
     "debug": "^2.6.8",
     "html-entities": "^1.2.1",
-    "matrix-puppet-bridge": "https://codeload.github.com/matrix-hacks/matrix-puppet-bridge/tar.gz/decce787d84a7db575924dd1286d01779d6aecf6",
+    "matrix-puppet-bridge": "arcnmx/matrix-puppet-bridge#bridgeconfig",
     "mime-types": "^2.1.14",
     "needle": "^1.4.5",
     "olm": "https://packages.matrix.org/npm/olm/olm-3.0.0.tgz",
