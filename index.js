@@ -191,9 +191,23 @@ new Cli({
   enableLocalpart: true,
   bridgeConfig: {
     affectsRegistration: true,
+    defaults: {
+      homeserver: {
+        localpart: "skypebot",
+        prefix: "@skype_"
+      },
+    },
+
     schema: {
       type: "object",
       properties: Object.assign(Puppet.configSchemaProperties(), {
+        homeserver: {
+          type: "object",
+          properties: {
+            localpart: "string",
+            prefix: "string",
+          }
+        },
         skype: {
           type: "object",
           username: {
@@ -214,8 +228,8 @@ new Cli({
         reg.setId(AppServiceRegistration.generateToken());
         reg.setHomeserverToken(AppServiceRegistration.generateToken());
         reg.setAppServiceToken(AppServiceRegistration.generateToken());
-        reg.setSenderLocalpart("skypebot");
-        reg.addRegexPattern("users", "@skype_.*", true);
+        reg.setSenderLocalpart(config.homeserver.localpart);
+        reg.addRegexPattern("users", `${config.homeserver.prefix}.*`, true);
 
         const puppet = new Puppet({
           config: config
