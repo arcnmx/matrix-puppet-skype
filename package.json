@@ -19,7 +19,7 @@
     "bluebird": "^3.5.0",
     "concat-stream": "^1.6.0",
     "debug": "^2.6.8",
-    "tmp": "^0.1.0",
+    "tmp-promise": "^1.1.0",
     "html-entities": "^1.2.1",
     "matrix-puppet-bridge": "arcnmx/matrix-puppet-bridge#bridgeconfig",
     "mime-types": "^2.1.14",

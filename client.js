@@ -28,23 +28,23 @@ class Client extends EventEmitter {
       this.selfSentFiles.splice(i, 1);
     }
   }
-  connect() {
+  async connect() {
     const opts = {
       credentials: this.auth,
       verbose: true
     }
 
-    return skypeHttp.connect(opts).then(api => {
-      this.api = api;
+    try {
+      this.api = await skypeHttp.connect(opts);
 
-      api.on("event", (ev) => {
-        //console.log(ev);
+      this.api.on("event", (ev) => {
+        //debug(ev);
 
         if (ev && ev.resource) {
           switch (ev.resource.type) {
             case "Text":
             case "RichText":
-              if (ev.resource.from.username === api.context.username) {
+              if (ev.resource.from.username === this.api.context.username) {
                 // the lib currently hides this kind from us. but i want it.
                 if (ev.resource.content.slice(-1) !== '\ufeff') {
                   this.emit('sent', ev.resource);
@@ -55,7 +55,7 @@ class Client extends EventEmitter {
               break;
             case "RichText/UriObject":
               if (!this.removeSelfSentFile(ev.resource.original_file_name)) {
-                if (ev.resource.from.username === api.context.username) {
+                if (ev.resource.from.username === this.api.context.username) {
                   ev.resource.from.raw = undefined;
                 }
                 this.emit('image', ev.resource)
@@ -66,32 +66,31 @@ class Client extends EventEmitter {
       });
 
       // Log every error
-      api.on("error", (err) => {
-        console.error("An error was detected:");
-        console.error(err);
+      this.api.on("error", (err) => {
+        debug(`An error was detected: ${err}`);
         this.emit('error', err);
       });
 
-      return api.getContacts().then((contacts)=>{
-        this.contacts = contacts;
-        console.log(`got ${contacts.length} contacts`);
+      this.contacts = await this.api.getContacts();
+      debug(`got ${contacts.length} contacts`);
 
-        console.log('listening for events');
-        return api.listen();
-      });
-    }).then(()=>{
-      console.log('setting status online');
-      return this.api.setStatus('Online');
+      debug('listening for events');
+      await this.api.listen();
 
-      console.log(api);
-    }).catch(err=>{
-      console.log(err);
+      debug('setting status online');
+      const res = await this.api.setStatus('Online');
+
+      return res;
+    } catch (err) {
+      debug(err);
       process.exit(0);
-    });
+    }
   }
+
   sendMessage(threadId, msg) {
     return this.api.sendMessage(msg, threadId);
   }
+
   sendPictureMessage(threadId, data) {
     this.selfSentFiles.push(data.name);
     return this.api.sendImage({
@@ -126,16 +125,18 @@ class Client extends EventEmitter {
 module.exports = Client;
 
 if (!module.parent) {
-  const client = new Client(require('./config.json').skype);
-  client.connect().then(function() {
+  const yaml = require('js-yaml');
+  const client = new Client(yaml.safeLoad('./config.yaml').skype);
+  (async () => {
+    await client.connect();
     client.on('message', (ev) => {
-      console.log('>>> message', ev);
+      debug('>>> message', ev);
     });
 
     client.on('sent', (ev) => {
-      console.log('>>> sent', ev);
+      debug('>>> sent', ev);
     });
 
     client.sendMessage('8:green.streak', { textContent: 'test from nodejs' });
-  });
+  })();
 }

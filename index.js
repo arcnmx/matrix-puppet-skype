@@ -12,7 +12,7 @@ const SkypeClient = require('./client');
 const path = require('path');
 const debug = require('debug')('matrix-puppet:skype');
 const { skypeify, deskypeify } = require('./skypeify');
-const tmp = require('tmp');
+const tmp = require('tmp-promise');
 const Promise = require('bluebird');
 const fs = require('fs');
 const { download, entities } = require('./utils');
@@ -103,7 +103,7 @@ class App extends MatrixPuppetBridgeBase {
       payload.senderId = a2b(data.sender);
       Object.assign(payload, this.getThirdPartyUserDataById_noPromise(data.sender));
     }
-    console.log(payload);
+    debug(payload);
     return payload;
   }
   handleSkypeMessage(data) {
@@ -111,44 +111,41 @@ class App extends MatrixPuppetBridgeBase {
     payload.text = deskypeify(data.content);
     return this.handleThirdPartyRoomMessage(payload);
   }
-  handleSkypeImage(data) {
+  async handleSkypeImage(data) {
     let payload = this.getPayload(data);
     payload.text = data.name;
     payload.path = ''; // needed to not create internal errors
-    return this.client.downloadImage(data.url).then(({ buffer, type }) => {
+    try {
+      const { buffer, type } = await this.client.downloadImage(data.url);
+
       payload.buffer = buffer;
       payload.mimetype = type;
-      return this.handleThirdPartyRoomImageMessage(payload);
-    }).catch((err) => {
-      console.log(err);
+      return await this.handleThirdPartyRoomImageMessage(payload);
+    } catch (err) {
+      debug(err);
       payload.text = '[Image] ('+data.name+') '+data.url;
-      return this.handleThirdPartyRoomMessage(payload);
-    });
+      return await this.handleThirdPartyRoomMessage(payload);
+    }
   }
-  getThirdPartyUserDataById(id) {
+  async getThirdPartyUserDataById(id) {
     let raw = b2a(id);
-    return Promise.resolve(this.getThirdPartyUserDataById_noPromise(raw));
+    return this.getThirdPartyUserDataById_noPromise(raw);
   }
-  getThirdPartyRoomDataById(id) {
+  async getThirdPartyRoomDataById(id) {
     let raw = b2a(id);
     let payload = {};
     let contact = this.client.getContact(raw);
     if (contact) {
-      return Promise.resolve({
+      return {
         name: deskypeify(contact.name.displayName),
         topic: "Skype Direct Message"
-      });
+      };
     }
-    return new Promise((resolve, reject) => {
-      this.client.getConversation(raw).then((res) => {
-        resolve({
-          name: deskypeify(res.threadProperties.topic),
-          topic: res.type.toLowerCase() == "conversation" ? "Skype Direct Message" : "Skype Group Chat"
-        });
-      }).catch((err) => {
-        reject(err);
-      });
-    });
+    const res = await this.client.getConversation(raw);
+    return {
+      name: deskypeify(res.threadProperties.topic),
+      topic: res.type.toLowerCase() == "conversation" ? "Skype Direct Message" : "Skype Group Chat"
+    };
   }
   sendReadReceiptAsPuppetToThirdPartyRoomWithId() {
     // no-op for now
@@ -158,32 +155,19 @@ class App extends MatrixPuppetBridgeBase {
       textContent: skypeify(text)
     });
   }
-  sendImageMessageAsPuppetToThirdPartyRoomWithId(id, data) {
-    let cleanup = () => {};
-    return new Promise((resolve, reject) => {
-      tmp.file((err, path, fd, cleanupCallback) => {
-        cleanup = cleanupCallback;
-        let tmpFile = fs.createWriteStream(path);
-        //let handler;
-        download.getBufferAndType(data.url).then(({ buffer, type }) => {
-          tmpFile.write(buffer, (err) => {
-            if (err) {
-              reject(err);
-              return;
-            }
-            tmpFile.close(() => {
-              resolve(this.client.sendPictureMessage(b2a(id), {
-                file: path,
-                name: data.text,
-                url: data.url
-              }));
-            });
-          });
-        });
-      });
-    }).finally(() => {
-      cleanup();
+  async sendImageMessageAsPuppetToThirdPartyRoomWithId(id, data) {
+    const { fd, path, cleanup } = await tmp.file();
+    const tmpFile = fs.createWriteStream(null, { fd: fd });
+    const { buffer, type } = await download.getBufferAndType(data.url);
+    await Promise.promisify(tmpFile.write)(buffer)
+    await Promise.promisify(tmpFile.close)();
+    const res = await this.client.sendPictureMessage(b2a(id), {
+      file: path,
+      name: data.text,
+      url: data.url
     });
+    cleanup();
+    return res;
   }
 }
 
@@ -247,22 +231,21 @@ new Cli({
       }
     })();
   },
-  run: function(port, config) {
+  run: async function(port, config) {
+    try {
       const puppet = new Puppet({
         config: config
       });
-    const app = new App(config, puppet);
-    console.log('starting matrix client');
-    return puppet.startClient().then(()=>{
-      console.log('starting skype client');
-      return app.initThirdPartyClient(config);
-    }).then(()=>{
-      return app.bridge.run(port, config);
-    }).then(()=>{
-      console.log('Matrix-side listening on port %s', port);
-    }).catch(err=>{
-      console.error(err.message);
+      const app = new App(config, puppet);
+      debug('starting matrix client');
+      await puppet.startClient();
+      debug('starting skype client');
+      await app.initThirdPartyClient(config);
+      await app.bridge.run(port, puppetConfig);
+      debug('Matrix-side listening on port %s', port);
+    } catch (err) {
+      debug(err.message);
       process.exit(-1);
-    });
+    };
   }
 }).run();
