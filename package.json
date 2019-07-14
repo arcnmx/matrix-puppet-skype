@@ -20,14 +20,14 @@
     "bluebird": "^3.5.0",
     "concat-stream": "^1.6.0",
     "debug": "^2.6.8",
-    "tmp-promise": "^1.1.0",
     "html-entities": "^1.2.1",
     "matrix-puppet-bridge": "git+https://github.com/arcnmx/matrix-puppet-bridge#0124de95411129f049b2dd6fd77ad3139054d7c2",
     "mime-types": "^2.1.14",
     "needle": "^1.4.5",
     "olm": "https://packages.matrix.org/npm/olm/olm-3.0.0.tgz",
     "skype-http": "^0.0.15",
-    "striptags": "^3.0.1"
+    "striptags": "^3.0.1",
+    "tmp-promise": "^1.1.0"
   },
   "devDependencies": {
     "js-yaml": "^3.13.1"
