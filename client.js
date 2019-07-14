@@ -17,6 +17,7 @@ class Client extends EventEmitter {
     this.lastMsgId = null;
     this.selfSentFiles = [];
   }
+
   removeSelfSentFile(s) {
     let match = false;
     while (true) {
@@ -28,6 +29,7 @@ class Client extends EventEmitter {
       this.selfSentFiles.splice(i, 1);
     }
   }
+
   async connect() {
     const opts = {
       credentials: this.auth,
@@ -40,28 +42,32 @@ class Client extends EventEmitter {
       this.api.on("event", (ev) => {
         //debug(ev);
 
-        if (ev && ev.resource) {
-          switch (ev.resource.type) {
-            case "Text":
-            case "RichText":
-              if (ev.resource.from.username === this.api.context.username) {
-                // the lib currently hides this kind from us. but i want it.
-                if (ev.resource.content.slice(-1) !== '\ufeff') {
-                  this.emit('sent', ev.resource);
-                }
-              } else {
-                this.emit('message', ev.resource);
-              }
-              break;
-            case "RichText/UriObject":
-              if (!this.removeSelfSentFile(ev.resource.original_file_name)) {
+        try {
+          if (ev && ev.resource) {
+            switch (ev.resource.type) {
+              case "Text":
+              case "RichText":
                 if (ev.resource.from.username === this.api.context.username) {
-                  ev.resource.from.raw = undefined;
+                  // the lib currently hides this kind from us. but i want it.
+                  if (ev.resource.content.slice(-1) !== '\ufeff') {
+                    this.emit('sent', ev.resource);
+                  }
+                } else {
+                  this.emit('message', ev.resource);
                 }
-                this.emit('image', ev.resource)
-              }
-              break;
+                break;
+              case "RichText/UriObject":
+                if (!this.removeSelfSentFile(ev.resource.original_file_name)) {
+                  if (ev.resource.from.username === this.api.context.username) {
+                    ev.resource.from.raw = undefined;
+                  }
+                  this.emit('image', ev.resource)
+                }
+                break;
+            }
           }
+        } catch (err) {
+          debug(err);
         }
       });
 
@@ -72,7 +78,7 @@ class Client extends EventEmitter {
       });
 
       this.contacts = await this.api.getContacts();
-      debug(`got ${contacts.length} contacts`);
+      debug(`got ${this.contacts.length} contacts`);
 
       debug('listening for events');
       await this.api.listen();
@@ -87,33 +93,35 @@ class Client extends EventEmitter {
     }
   }
 
-  sendMessage(threadId, msg) {
-    return this.api.sendMessage(msg, threadId);
+  async sendMessage(threadId, msg) {
+    return await this.api.sendMessage(msg, threadId);
   }
 
-  sendPictureMessage(threadId, data) {
+  async sendPictureMessage(threadId, data) {
     this.selfSentFiles.push(data.name);
-    return this.api.sendImage({
-      file: data.file,
-      name: data.name
-    }, threadId).catch((err) => {
+    try {
+      return await this.api.sendImage({
+        file: data.file,
+        name: data.name
+      }, threadId);
+    } catch (err) {
       this.removeSelfSentFile(data.name);
-      this.api.sendMessage({ textContent: '[Image] <a href="'+entities.encode(data.url)+'">'+entities.encode(data.name)+'</a>' }, threadId);
-    });
+      await this.api.sendMessage({ textContent: '[Image] <a href="'+entities.encode(data.url)+'">'+entities.encode(data.name)+'</a>' }, threadId);
+    }
   }
   getContact(id) {
     let contact = this.contacts.find((c) => {
-      return c.id.id === id || c.id.raw === id;
+      return c.personId === id || c.mri === id;
     });
     if (contact) {
       return contact;
     }
   }
-  getConversation(id) {
-    return this.api.getConversation(id);
+  async getConversation(id) {
+    return await this.api.getConversation(id);
   }
-  downloadImage(url) {
-    return download.getBufferAndType(url, {
+  async downloadImage(url) {
+    return await download.getBufferAndType(url, {
       cookies: this.api.context.cookies,
       headers: {
         Authorization: 'skype_token ' + this.api.context.skypeToken.value
@@ -126,8 +134,10 @@ module.exports = Client;
 
 if (!module.parent) {
   const yaml = require('js-yaml');
-  const client = new Client(yaml.safeLoad('./config.yaml').skype);
-  (async () => {
+  const fs = require('fs');
+  return (async () => {
+    const config = await Promise.promisify(fs.readFile)('./config.yaml');
+    const client = new Client(yaml.safeLoad(config).skype);
     await client.connect();
     client.on('message', (ev) => {
       debug('>>> message', ev);

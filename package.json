@@ -6,7 +6,8 @@
   "scripts": {
     "cli": "DEBUG=matrix-puppet:* ./index.js",
     "start": "DEBUG=matrix-puppet:* ./index.js -c config.yaml",
-    "reg": "DEBUG=matrix-puppet:* ./index.js -r -c config.yaml -u"
+    "reg": "DEBUG=matrix-puppet:* ./index.js -r -c config.yaml -u",
+    "client": "DEBUG=matrix-puppet:* node ./client.js"
   },
   "bin": {
     "matrix-puppet-skype": "index.js"
@@ -21,11 +22,14 @@
     "debug": "^2.6.8",
     "tmp-promise": "^1.1.0",
     "html-entities": "^1.2.1",
-    "matrix-puppet-bridge": "arcnmx/matrix-puppet-bridge#bridgeconfig",
+    "matrix-puppet-bridge": "git+https://github.com/arcnmx/matrix-puppet-bridge#0124de95411129f049b2dd6fd77ad3139054d7c2",
     "mime-types": "^2.1.14",
     "needle": "^1.4.5",
     "olm": "https://packages.matrix.org/npm/olm/olm-3.0.0.tgz",
     "skype-http": "^0.0.15",
     "striptags": "^3.0.1"
+  },
+  "devDependencies": {
+    "js-yaml": "^3.13.1"
   }
 }

@@ -1,6 +1,6 @@
 homeserver:
   localpart: skypebot
-  prefix: '@skype_'
+  prefix: 'skype'
 skype:
   username: ''
   password: ''

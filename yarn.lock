@@ -1062,9 +1062,9 @@ matrix-js-sdk@^2.1.0:
     request "^2.88.0"
     unhomoglyph "^1.0.2"
 
-matrix-puppet-bridge@arcnmx/matrix-puppet-bridge#bridgeconfig:
+"matrix-puppet-bridge@git+https://github.com/arcnmx/matrix-puppet-bridge#0124de95411129f049b2dd6fd77ad3139054d7c2":
   version "1.16.2"
-  resolved "https://codeload.github.com/arcnmx/matrix-puppet-bridge/tar.gz/dbd7814552571fba946dc3a0b4737a50b002f887"
+  resolved "git+https://github.com/arcnmx/matrix-puppet-bridge#0124de95411129f049b2dd6fd77ad3139054d7c2"
   dependencies:
     bluebird "^3.5.5"
     concat-stream "^1.6.0"

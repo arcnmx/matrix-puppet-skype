@@ -22,19 +22,33 @@ const b2a = b => new Buffer(b, 'base64').toString('ascii');
 
 class App extends MatrixPuppetBridgeBase {
   getServicePrefix() {
-    return "skype";
+    return this.config.homeserver.prefix;
   }
+
   getServiceName() {
     return "Skype";
   }
-  initThirdPartyClient(config) {
+
+  async lateInit() {
+    await this.joinThirdPartyUsersToStatusRoom(this.client.contacts.map(c => ({
+      name: c.displayName,
+      userId: a2b(c.personId || c.mri),
+      avatarUrl: c.profile.avatarUrl
+    })));
+  }
+
+  async initThirdPartyClient(config) {
     this.client = new SkypeClient(config.skype);
 
-    this.client.on('error', (err) => {
-      this.sendStatusMsg({}, err);
+    this.client.on('error', async (err) => {
+      try {
+        await this.sendStatusMsg({}, err);
+      } catch (err) {
+        debug(err);
+      }
     });
 
-    this.client.on('message', (data) => {
+    this.client.on('message', async (data) => {
       debug('message', data);
       const {
         type,
@@ -42,49 +56,62 @@ class App extends MatrixPuppetBridgeBase {
         conversation, content
       } = data;
 
-      this.handleSkypeMessage({
-        type: type,
-        roomId: a2b(conversation),
-        sender: raw,
-        content: content
-      });
+      try {
+        await this.handleSkypeMessage({
+          type: type,
+          roomId: a2b(conversation),
+          sender: raw,
+          content: content
+        });
+      } catch(err) {
+        debug(err);
+      }
     });
 
-    this.client.on('sent', (data) => {
+    this.client.on('sent', async (data) => {
       debug('sent', data);
       const { type, conversation, content } = data;
 
-      this.handleSkypeMessage({
-        type: type,
-        roomId: a2b(conversation),
-        sender: undefined,
-        content: content
-      });
+      try {
+        await this.handleSkypeMessage({
+          type: type,
+          roomId: a2b(conversation),
+          sender: undefined,
+          content: content
+        });
+      } catch (err) {
+        debug(err);
+      }
     });
 
-    this.client.on('image', (data) => {
+    this.client.on('image', async (data) => {
       const {
         type,
         from: { raw },
         conversation, uri, original_file_name
       } = data;
-      this.handleSkypeImage({
-        type: type,
-        roomId: a2b(conversation),
-        sender: raw,
-        url: uri+'/views/imgpsh_fullsize',
-        name: original_file_name
-      });
+      try {
+        await this.handleSkypeImage({
+          type: type,
+          roomId: a2b(conversation),
+          sender: raw,
+          url: uri+'/views/imgpsh_fullsize',
+          name: original_file_name
+        });
+      } catch (err) {
+        debug(err);
+      }
     });
 
-    return this.client.connect();
+    return await this.client.connect();
   }
+
   getThirdPartyUserDataById_noPromise(id) {
     let contact = this.client.getContact(id);
     let payload = {}
     if (contact) {
-      payload.senderName = contact.name.displayName;
-      payload.avatarUrl = contact.avatarUrl;
+      payload.senderName = contact.displayName;
+      payload.avatarUrl = contact.profile.avatarUrl;
     } else if (data.sender.indexOf(":") =! -1) {
       payload.senderName = data.sender.substr(data.sender.indexOf(":")+1);
       payload.avatarUrl = 'https://avatars.skype.com/v1/avatars/' + entities.encode(payload.senderName) + '/public?returnDefaultImage=false&cacheHeaders=true';
@@ -93,6 +120,7 @@ class App extends MatrixPuppetBridgeBase {
     }
     return payload;
   }
+
   getPayload(data) {
     let payload = {
       roomId: data.roomId.replace(':', '^'),
@@ -106,11 +134,13 @@ class App extends MatrixPuppetBridgeBase {
     debug(payload);
     return payload;
   }
-  handleSkypeMessage(data) {
+
+  async handleSkypeMessage(data) {
     let payload = this.getPayload(data);
     payload.text = deskypeify(data.content);
-    return this.handleThirdPartyRoomMessage(payload);
+    return await this.handleThirdPartyRoomMessage(payload);
   }
+
   async handleSkypeImage(data) {
     let payload = this.getPayload(data);
     payload.text = data.name;
@@ -127,17 +157,19 @@ class App extends MatrixPuppetBridgeBase {
       return await this.handleThirdPartyRoomMessage(payload);
     }
   }
+
   async getThirdPartyUserDataById(id) {
     let raw = b2a(id);
     return this.getThirdPartyUserDataById_noPromise(raw);
   }
+
   async getThirdPartyRoomDataById(id) {
     let raw = b2a(id);
     let payload = {};
     let contact = this.client.getContact(raw);
     if (contact) {
       return {
-        name: deskypeify(contact.name.displayName),
+        name: deskypeify(contact.displayName),
         topic: "Skype Direct Message"
       };
     }
@@ -147,14 +179,17 @@ class App extends MatrixPuppetBridgeBase {
       topic: res.type.toLowerCase() == "conversation" ? "Skype Direct Message" : "Skype Group Chat"
     };
   }
+
   sendReadReceiptAsPuppetToThirdPartyRoomWithId() {
     // no-op for now
   }
+
   sendMessageAsPuppetToThirdPartyRoomWithId(id, text) {
     return this.client.sendMessage(b2a(id), {
       textContent: skypeify(text)
     });
   }
+
   async sendImageMessageAsPuppetToThirdPartyRoomWithId(id, data) {
     const { fd, path, cleanup } = await tmp.file();
     const tmpFile = fs.createWriteStream(null, { fd: fd });
@@ -213,7 +248,9 @@ new Cli({
         reg.setHomeserverToken(AppServiceRegistration.generateToken());
         reg.setAppServiceToken(AppServiceRegistration.generateToken());
         reg.setSenderLocalpart(config.homeserver.localpart);
-        reg.addRegexPattern("users", `${config.homeserver.prefix}.*`, true);
+        reg.addRegexPattern("users", `@${config.homeserver.prefix}_.*`, true);
+        reg.addRegexPattern("rooms", `#${config.homeserver.prefix}_.*`, true);
+        reg.addRegexPattern("aliases", `#${config.homeserver.prefix}_.*`, true);
 
         const puppet = new Puppet({
           config: config
@@ -231,18 +268,19 @@ new Cli({
       }
     })();
   },
-  run: async function(port, config) {
+  run: async function(port, config, reg) {
     try {
       const puppet = new Puppet({
         config: config
       });
-      const app = new App(config, puppet);
+      const app = new App(config, puppet, null, reg);
       debug('starting matrix client');
       await puppet.startClient();
       debug('starting skype client');
       await app.initThirdPartyClient(config);
-      await app.bridge.run(port, puppetConfig);
+      await app.bridge.run(port, config);
       debug('Matrix-side listening on port %s', port);
+      await app.lateInit();
     } catch (err) {
       debug(err.message);
       process.exit(-1);
